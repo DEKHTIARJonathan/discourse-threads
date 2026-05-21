@@ -1,0 +1,42 @@
+en:
+  admin_js:
+    admin:
+      site_settings:
+        categories:
+          discourse_threads: "Threads"
+  js:
+    discourse_threads:
+      title: "Threads"
+      switch_to_thread_mode: "Switch to Thread Mode"
+      switch_to_linear_mode: "Switch to Linear Mode"
+      edit_topic_managers: "Edit topic managers"
+      topic_managers: "Topic managers:"
+      topic_author_badge: " (author)"
+      topic_author_manager: "Topic author"
+      topic_managers_optional: "Topic co-managers (can relocate posts between threads)"
+      topic_managers_placeholder: "Add up to 10 users"
+      post_number_title: "Post number for thread relocation"
+      move_post:
+        button: "Relocate"
+        title: "Relocate post"
+        warning: "Relocating changes where this post appears in the thread tree."
+        post: "Post"
+        current_location: "Current location"
+        new_location: "New location"
+        top_level: "Top-level reply"
+        under_post: "Under post #%{post_number}"
+        choose_target: "Choose a target post"
+        instructions: "Enter the post number that should become this post's parent. Use 1 to make it a top-level reply."
+        target_post_number: "Move under post number"
+        make_top_level: "Move to top level"
+        confirm: "I understand this will change the thread structure."
+        action: "Relocate post"
+      expand_replies:
+        one: "%{count} reply"
+        other: "%{count} replies"
+      collapse_replies: "Collapse"
+      continue_thread: "Continue this thread"
+      load_more_roots: "Load more replies"
+      load_more_children: "Load more replies"
+      no_replies: "No replies yet."
+      loading: "Loading..."

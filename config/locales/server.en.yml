@@ -1,0 +1,4 @@
+en:
+  site_settings:
+    discourse_threads_enabled: "Enable per-topic thread mode controls and topic managers for nested replies."
+    discourse_threads_default_thread_mode_enabled: "Show topics in thread mode by default for users who have not chosen a per-topic preference."
