@@ -81,6 +81,50 @@ RSpec.describe DiscourseThreads::ThreadedTopicsController do
         include("username" => user.username, "locked" => false)
       )
     end
+
+    it "does not expose thread mode controls for private messages" do
+      pm_topic =
+        Fabricate(:private_message_topic, user: topic_author, recipient: user)
+
+      sign_in(topic_author)
+      get "/t/#{pm_topic.slug}/#{pm_topic.id}.json"
+
+      expect(response.parsed_body).not_to have_key("is_nested_view")
+      expect(response.parsed_body["discourse_threads_available"]).to eq(false)
+      expect(response.parsed_body["discourse_threads_can_manage"]).to eq(false)
+      expect(response.parsed_body["discourse_threads_topic_managers"]).to eq([])
+    end
+
+    it "does not serialize the OP as movable" do
+      sign_in(topic_author)
+
+      get "/t/#{topic.slug}/#{topic.id}.json"
+
+      serialized_op =
+        response
+          .parsed_body
+          .dig("post_stream", "posts")
+          .find { |post| post["post_number"] == 1 }
+      expect(serialized_op["discourse_threads_can_move"]).to eq(false)
+    end
+
+    it "rejects more than ten co-topic managers during topic creation" do
+      admin = Fabricate(:admin)
+      users =
+        Array.new(DiscourseThreads::MAX_TOPIC_MANAGERS + 1) { Fabricate(:user) }
+      creator =
+        PostCreator.new(
+          admin,
+          title: "Too many topic managers",
+          raw: "This topic has too many submitted co-topic managers.",
+          discourse_threads_topic_manager_usernames: users.map(&:username)
+        )
+
+      expect(creator.create).to eq(nil)
+      expect(creator.errors.full_messages).to include(
+        "You can add up to 10 topic co-managers."
+      )
+    end
   end
 
   describe "#preference" do
@@ -97,6 +141,15 @@ RSpec.describe DiscourseThreads::ThreadedTopicsController do
 
       expect(response.status).to eq(200)
       expect(response.parsed_body["thread_mode_enabled"]).to eq(false)
+    end
+
+    it "returns not found when the feature is unavailable for the topic" do
+      pm_topic =
+        Fabricate(:private_message_topic, user: topic_author, recipient: user)
+
+      get "/threads/topics/#{pm_topic.id}/preference.json"
+
+      expect(response.status).to eq(404)
     end
 
     it "stores the linear-view override" do
@@ -141,6 +194,18 @@ RSpec.describe DiscourseThreads::ThreadedTopicsController do
         include("username" => manager.username, "locked" => false)
       )
       expect(DiscourseThreads.manager_ids(topic.reload)).to eq([manager.id])
+    end
+
+    it "returns a useful validation error for missing users" do
+      put "/threads/topics/#{topic.id}/managers.json",
+          params: {
+            manager_usernames: ["missing-user"]
+          }
+
+      expect(response.status).to eq(422)
+      expect(response.parsed_body["errors"]).to contain_exactly(
+        "Topic manager users not found: missing-user"
+      )
     end
   end
 

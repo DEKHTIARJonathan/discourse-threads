@@ -14,6 +14,7 @@ module DiscourseThreads
 
     model :topic
     policy :can_see_topic
+    policy :feature_available
     transaction { step :persist_preference }
 
     private
@@ -24,6 +25,10 @@ module DiscourseThreads
 
     def can_see_topic(guardian:, topic:)
       guardian.can_see?(topic)
+    end
+
+    def feature_available(topic:)
+      DiscourseThreads.feature_available_for_topic?(topic)
     end
 
     def persist_preference(params:, guardian:, topic:)

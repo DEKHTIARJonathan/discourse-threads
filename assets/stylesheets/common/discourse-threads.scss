@@ -81,9 +81,11 @@
   }
 }
 
-.nested-view__flat-link,
-.nested-view-link {
-  display: none;
+html.discourse-threads-enabled {
+  .nested-view__flat-link,
+  .nested-view-link {
+    display: none;
+  }
 }
 
 .discourse-threads-composer-managers {

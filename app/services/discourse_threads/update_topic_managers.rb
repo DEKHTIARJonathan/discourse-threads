@@ -12,7 +12,7 @@ module DiscourseThreads
       validate :manager_limit
 
       def manager_usernames
-        Array(super).map(&:to_s).map(&:strip).reject(&:blank?).uniq
+        DiscourseThreads.normalized_manager_usernames(super)
       end
 
       private
@@ -20,11 +20,18 @@ module DiscourseThreads
       def manager_limit
         return if manager_usernames.size <= DiscourseThreads::MAX_TOPIC_MANAGERS
 
-        errors.add(:manager_usernames, :too_long)
+        errors.add(
+          :base,
+          I18n.t(
+            "discourse_threads.errors.too_many_topic_managers",
+            count: DiscourseThreads::MAX_TOPIC_MANAGERS
+          )
+        )
       end
     end
 
     model :topic
+    policy :feature_available
     policy :can_manage_topic
     step :resolve_managers
     transaction { step :save_managers }
@@ -33,6 +40,10 @@ module DiscourseThreads
 
     def fetch_topic(params:)
       Topic.find_by(id: params.topic_id)
+    end
+
+    def feature_available(topic:)
+      DiscourseThreads.feature_available_for_topic?(topic)
     end
 
     def can_manage_topic(guardian:, topic:)
@@ -55,8 +66,12 @@ module DiscourseThreads
         usernames.reject { |username| found.include?(username.downcase) }
 
       if missing.present?
-        context[:missing_usernames] = missing
-        fail!("missing_usernames")
+        fail!(
+          I18n.t(
+            "discourse_threads.errors.missing_topic_managers",
+            usernames: missing.join(", ")
+          )
+        )
       else
         username_positions = usernames.map(&:downcase).each_with_index.to_h
         context[:manager_users] = users.sort_by do |user|

@@ -15,6 +15,8 @@ RSpec.describe DiscourseThreads::UpdateTopicPreference do
     let(:dependencies) { { guardian: user.guardian } }
     let(:thread_mode_enabled) { false }
 
+    before { SiteSetting.nested_replies_enabled = true }
+
     context "when contract is invalid" do
       let(:params) { { topic_id: nil, thread_mode_enabled: false } }
 
@@ -25,6 +27,18 @@ RSpec.describe DiscourseThreads::UpdateTopicPreference do
       let(:params) { { topic_id: 0, thread_mode_enabled: false } }
 
       it { is_expected.to fail_to_find_a_model(:topic) }
+    end
+
+    context "when nested replies are disabled" do
+      before { SiteSetting.nested_replies_enabled = false }
+
+      it { is_expected.to fail_a_policy(:feature_available) }
+    end
+
+    context "when the topic is a private message" do
+      fab!(:topic) { Fabricate(:private_message_topic, user: user) }
+
+      it { is_expected.to fail_a_policy(:feature_available) }
     end
 
     context "when disabling thread mode" do

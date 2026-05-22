@@ -7,6 +7,10 @@
 
 register_asset "stylesheets/common/discourse-threads.scss"
 register_svg_icon "up-down-left-right"
+register_svg_icon "diagram-project"
+register_svg_icon "user-gear"
+register_svg_icon "arrow-up"
+register_svg_icon "list"
 enabled_site_setting :discourse_threads_enabled
 
 module ::DiscourseThreads
@@ -48,6 +52,16 @@ module ::DiscourseThreads
     User.real(allowed_bot_user_ids: allowed_bot_user_ids)
   end
 
+  def self.feature_available_for_topic?(topic)
+    SiteSetting.discourse_threads_enabled &&
+      SiteSetting.nested_replies_enabled && topic.present? &&
+      !topic.private_message?
+  end
+
+  def self.normalized_manager_usernames(usernames)
+    Array(usernames).map(&:to_s).map(&:strip).reject(&:blank?).uniq
+  end
+
   def self.can_manage_topic?(guardian, topic)
     return false if guardian.blank? || guardian.user.blank? || topic.blank?
     return true if guardian.is_staff?
@@ -68,7 +82,7 @@ module ::DiscourseThreads
         start_post_number: post.post_number,
         exclude_deleted: false,
         stop_at_op: true
-      ).last
+      ).max_by(&:depth)
 
     Post.with_deleted.find_by(id: root.id) if root
   end
@@ -113,14 +127,32 @@ after_initialize do
     :array
   )
 
-  on(:topic_created) do |topic, opts, _user|
+  on(:after_validate_topic) do |topic, topic_creator|
+    next if !SiteSetting.discourse_threads_enabled || topic.private_message?
+
     usernames =
-      Array(opts[:discourse_threads_topic_manager_usernames])
-        .map(&:to_s)
-        .map(&:strip)
-        .reject(&:blank?)
-        .uniq
-        .first(DiscourseThreads::MAX_TOPIC_MANAGERS)
+      DiscourseThreads.normalized_manager_usernames(
+        topic_creator.opts[:discourse_threads_topic_manager_usernames]
+      )
+
+    if usernames.size > DiscourseThreads::MAX_TOPIC_MANAGERS
+      topic.errors.add(
+        :base,
+        I18n.t(
+          "discourse_threads.errors.too_many_topic_managers",
+          count: DiscourseThreads::MAX_TOPIC_MANAGERS
+        )
+      )
+    end
+  end
+
+  on(:topic_created) do |topic, opts, _user|
+    next if topic.private_message?
+
+    usernames =
+      DiscourseThreads.normalized_manager_usernames(
+        opts[:discourse_threads_topic_manager_usernames]
+      )
 
     if usernames.present?
       users =
@@ -151,8 +183,7 @@ after_initialize do
     private
 
     def discourse_threads_active_for_user?
-      SiteSetting.discourse_threads_enabled &&
-        SiteSetting.nested_replies_enabled && !object.topic.private_message? &&
+      DiscourseThreads.feature_available_for_topic?(object.topic) &&
         DiscourseThreads.thread_mode_enabled?(scope.user, object.topic)
     end
   end
@@ -162,23 +193,28 @@ after_initialize do
   end
 
   add_to_serializer(:topic_view, :discourse_threads_available) do
-    SiteSetting.discourse_threads_enabled &&
-      SiteSetting.nested_replies_enabled && !object.topic.private_message?
+    DiscourseThreads.feature_available_for_topic?(object.topic)
   end
 
   add_to_serializer(:topic_view, :discourse_threads_thread_mode_enabled) do
-    DiscourseThreads.thread_mode_enabled?(scope.user, object.topic)
+    DiscourseThreads.feature_available_for_topic?(object.topic) &&
+      DiscourseThreads.thread_mode_enabled?(scope.user, object.topic)
   end
 
   add_to_serializer(:topic_view, :discourse_threads_can_manage) do
-    DiscourseThreads.can_manage_topic?(scope, object.topic)
+    DiscourseThreads.feature_available_for_topic?(object.topic) &&
+      DiscourseThreads.can_manage_topic?(scope, object.topic)
   end
 
   add_to_serializer(:post, :discourse_threads_can_move) do
-    DiscourseThreads.can_relocate_post?(scope, object.topic, object)
+    DiscourseThreads.feature_available_for_topic?(object.topic) &&
+      !object.is_first_post? && object.deleted_at.blank? &&
+      DiscourseThreads.can_relocate_post?(scope, object.topic, object)
   end
 
   add_to_serializer(:topic_view, :discourse_threads_topic_managers) do
+    next [] if !DiscourseThreads.feature_available_for_topic?(object.topic)
+
     DiscourseThreads
       .topic_manager_users(object.topic)
       .map do |user|

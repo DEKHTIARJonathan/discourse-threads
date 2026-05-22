@@ -73,6 +73,18 @@ RSpec.describe DiscourseThreads::MovePostToThread do
       it { is_expected.to fail_to_find_a_model(:topic) }
     end
 
+    context "when nested replies are disabled" do
+      before { SiteSetting.nested_replies_enabled = false }
+
+      it { is_expected.to fail_a_policy(:feature_available) }
+    end
+
+    context "when the topic is a private message" do
+      fab!(:topic) { Fabricate(:private_message_topic, user: topic_author) }
+
+      it { is_expected.to fail_a_policy(:feature_available) }
+    end
+
     context "when user cannot manage the topic" do
       fab!(:other_user, :user)
 
@@ -116,6 +128,16 @@ RSpec.describe DiscourseThreads::MovePostToThread do
           target_post_number: root.post_number
         }
       end
+
+      it { is_expected.to fail_a_policy(:post_can_be_moved) }
+    end
+
+    context "when moving a deleted post" do
+      fab!(:admin)
+
+      let(:dependencies) { { guardian: admin.guardian } }
+
+      before { child.trash! }
 
       it { is_expected.to fail_a_policy(:post_can_be_moved) }
     end

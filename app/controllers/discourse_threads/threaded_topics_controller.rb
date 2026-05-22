@@ -9,6 +9,7 @@ module DiscourseThreads
     def show
       topic = Topic.find_by(id: params[:topic_id].to_i)
       raise Discourse::NotFound if topic.blank? || !guardian.can_see?(topic)
+      raise Discourse::NotFound if !DiscourseThreads.feature_available_for_topic?(topic)
 
       redirect_to "/n/#{topic.slug}/#{topic.id}", status: :found
     end
@@ -29,6 +30,7 @@ module DiscourseThreads
         on_failed_contract { raise Discourse::InvalidParameters }
         on_model_not_found(:topic) { raise Discourse::NotFound }
         on_failed_policy(:can_see_topic) { raise Discourse::InvalidAccess }
+        on_failed_policy(:feature_available) { raise Discourse::NotFound }
         on_failure { raise Discourse::InvalidParameters }
       end
     end
@@ -37,6 +39,7 @@ module DiscourseThreads
       topic = Topic.find_by(id: params[:topic_id].to_i)
       raise Discourse::NotFound if topic.blank?
       raise Discourse::InvalidAccess if !guardian.can_see?(topic)
+      raise Discourse::NotFound if !DiscourseThreads.feature_available_for_topic?(topic)
 
       render json: {
                thread_mode_enabled:
@@ -60,10 +63,12 @@ module DiscourseThreads
           render_json_error(contract.errors.full_messages, status: :bad_request)
         end
         on_model_not_found(:topic) { raise Discourse::NotFound }
+        on_failed_policy(:feature_available) { raise Discourse::NotFound }
         on_failed_policy(:can_manage_topic) { raise Discourse::InvalidAccess }
-        on_failure do |missing_usernames: []|
-          render_json_error(missing_usernames, status: :unprocessable_entity)
+        on_failed_step(:resolve_managers) do |step|
+          render_json_error(step.error, status: :unprocessable_entity)
         end
+        on_failure { raise Discourse::InvalidParameters }
       end
     end
 
@@ -88,6 +93,7 @@ module DiscourseThreads
         end
         on_failed_contract { raise Discourse::InvalidParameters }
         on_model_not_found(:topic) { raise Discourse::NotFound }
+        on_failed_policy(:feature_available) { raise Discourse::NotFound }
         on_model_not_found(:post) { raise Discourse::NotFound }
         on_model_not_found(:target_post) { raise Discourse::NotFound }
         on_failed_policy(:can_relocate_post) { raise Discourse::InvalidAccess }

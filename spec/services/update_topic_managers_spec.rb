@@ -17,6 +17,8 @@ RSpec.describe DiscourseThreads::UpdateTopicManagers do
     end
     let(:dependencies) { { guardian: topic_author.guardian } }
 
+    before { SiteSetting.nested_replies_enabled = true }
+
     context "when contract is invalid" do
       let(:params) { { topic_id: nil, manager_usernames: [] } }
 
@@ -27,6 +29,18 @@ RSpec.describe DiscourseThreads::UpdateTopicManagers do
       let(:params) { { topic_id: 0, manager_usernames: [] } }
 
       it { is_expected.to fail_to_find_a_model(:topic) }
+    end
+
+    context "when nested replies are disabled" do
+      before { SiteSetting.nested_replies_enabled = false }
+
+      it { is_expected.to fail_a_policy(:feature_available) }
+    end
+
+    context "when the topic is a private message" do
+      fab!(:topic) { Fabricate(:private_message_topic, user: topic_author) }
+
+      it { is_expected.to fail_a_policy(:feature_available) }
     end
 
     context "when user cannot manage the topic" do

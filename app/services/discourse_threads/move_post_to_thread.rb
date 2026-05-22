@@ -15,6 +15,7 @@ module DiscourseThreads
     end
 
     model :topic
+    policy :feature_available
     model :post
     model :target_post
     policy :can_relocate_post
@@ -27,6 +28,10 @@ module DiscourseThreads
 
     def fetch_topic(params:)
       Topic.find_by(id: params.topic_id)
+    end
+
+    def feature_available(topic:)
+      DiscourseThreads.feature_available_for_topic?(topic)
     end
 
     def fetch_post(params:, topic:, guardian:)

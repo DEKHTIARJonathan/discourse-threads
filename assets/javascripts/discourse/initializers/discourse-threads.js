@@ -47,6 +47,8 @@ export default {
       return;
     }
 
+    document.documentElement.classList.add("discourse-threads-enabled");
+
     withPluginApi((api) => {
       const router = container.lookup("service:router");
 
