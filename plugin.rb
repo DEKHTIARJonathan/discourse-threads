@@ -17,6 +17,7 @@ module ::DiscourseThreads
   PLUGIN_NAME = "discourse-threads"
   TOPIC_MANAGER_IDS_FIELD = "discourse_threads_topic_manager_ids"
   MAX_TOPIC_MANAGERS = 10
+  REQUIRED_SITE_SETTINGS = %i[nested_replies_enabled].freeze
 
   def self.manager_ids(topic)
     raw = topic.custom_fields[TOPIC_MANAGER_IDS_FIELD]
@@ -103,6 +104,35 @@ module ::DiscourseThreads
     preference = UserTopicPreference.find_by(user: user, topic: topic)
     preference.present? ? preference.thread_mode_enabled : default_enabled
   end
+
+  def self.enforce_required_site_settings
+    return if !SiteSetting.discourse_threads_enabled
+
+    REQUIRED_SITE_SETTINGS.each do |setting|
+      SiteSetting.public_send("#{setting}=", true) if !SiteSetting.public_send(setting)
+    end
+  end
+
+  def self.required_site_setting_disabled?(name, value)
+    REQUIRED_SITE_SETTINGS.include?(name.to_sym) &&
+      value != true && value != "t" && value != "true" &&
+      SiteSetting.discourse_threads_enabled
+  end
+
+  module SiteSettingGuard
+    def add_override!(name, value)
+      if DiscourseThreads.required_site_setting_disabled?(name, value)
+        raise Discourse::InvalidParameters.new(
+                I18n.t(
+                  "discourse_threads.errors.required_site_setting",
+                  setting: name
+                )
+              )
+      end
+
+      super
+    end
+  end
 end
 
 require_relative "lib/discourse_threads/engine"
@@ -117,6 +147,18 @@ after_initialize do
   require_relative "app/services/discourse_threads/move_post_to_thread"
   require_relative "app/services/discourse_threads/update_topic_managers"
   require_relative "app/services/discourse_threads/update_topic_preference"
+
+  if !SiteSetting.singleton_class.ancestors.include?(DiscourseThreads::SiteSettingGuard)
+    SiteSetting.singleton_class.prepend(DiscourseThreads::SiteSettingGuard)
+  end
+
+  RailsMultisite::ConnectionManagement.safe_each_connection do
+    DiscourseThreads.enforce_required_site_settings
+  end
+
+  on_enabled_change do |_old_value, new_value|
+    DiscourseThreads.enforce_required_site_settings if new_value
+  end
 
   register_topic_custom_field_type(
     DiscourseThreads::TOPIC_MANAGER_IDS_FIELD,

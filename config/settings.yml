@@ -2,6 +2,9 @@ discourse_threads:
   discourse_threads_enabled:
     default: true
     client: true
+  nested_replies_enabled:
+    default: true
+    client: true
   discourse_threads_default_thread_mode_enabled:
     default: true
     client: true

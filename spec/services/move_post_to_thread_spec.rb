@@ -53,8 +53,6 @@ RSpec.describe DiscourseThreads::MovePostToThread do
     end
     let(:dependencies) { { guardian: topic_author.guardian } }
 
-    before { SiteSetting.nested_replies_enabled = true }
-
     context "when contract is invalid" do
       let(:params) { { topic_id: nil, post_id: nil, target_post_number: nil } }
 
@@ -73,8 +71,11 @@ RSpec.describe DiscourseThreads::MovePostToThread do
       it { is_expected.to fail_to_find_a_model(:topic) }
     end
 
-    context "when nested replies are disabled" do
-      before { SiteSetting.nested_replies_enabled = false }
+    context "when the plugin is disabled" do
+      before do
+        SiteSetting.discourse_threads_enabled = false
+        SiteSetting.nested_replies_enabled = false
+      end
 
       it { is_expected.to fail_a_policy(:feature_available) }
     end

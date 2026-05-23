@@ -21,9 +21,6 @@ RSpec.describe DiscourseThreads::ThreadedTopicsController do
   fab!(:other_root) do
     Fabricate(:post, topic: topic, post_number: 4, reply_to_post_number: nil)
   end
-
-  before { SiteSetting.nested_replies_enabled = true }
-
   describe "#show" do
     it "redirects the threads route to the core nested route" do
       get "/threads/#{topic.slug}/#{topic.id}"
